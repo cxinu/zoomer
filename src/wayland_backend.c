@@ -7,6 +7,7 @@
 #include <wayland-client.h>
 #include <wayland-egl.h>
 
+#include "wlr-layer-shell-protocol.h"
 #include "xdg-shell-protocol.h"
 
 #define MAX_KEY_EVENTS 16
@@ -29,6 +30,10 @@ typedef struct {
   struct xdg_surface *xdg_surface;
   struct xdg_toplevel *xdg_toplevel;
 
+  /* layer-shell (used for seamless fullscreen overlay) */
+  struct zwlr_layer_shell_v1 *layer_shell;
+  struct zwlr_layer_surface_v1 *layer_surface;
+
   /* EGL */
   struct wl_egl_window *egl_window;
   EGLDisplay egl_display;
@@ -41,6 +46,7 @@ typedef struct {
   int height;
   int configured;
   int closed;
+  int windowed;
 
   /* input state – updated by callbacks, read by Nim */
   float pointer_x;
@@ -283,6 +289,9 @@ static void registry_global(void *data, struct wl_registry *reg, uint32_t name,
   } else if (strcmp(interface, xdg_wm_base_interface.name) == 0) {
     state->wm_base = wl_registry_bind(reg, name, &xdg_wm_base_interface, 1);
     xdg_wm_base_add_listener(state->wm_base, &wm_base_listener, state);
+  } else if (strcmp(interface, zwlr_layer_shell_v1_interface.name) == 0) {
+    state->layer_shell =
+        wl_registry_bind(reg, name, &zwlr_layer_shell_v1_interface, 1);
   } else if (strcmp(interface, wl_seat_interface.name) == 0) {
     state->seat = wl_registry_bind(reg, name, &wl_seat_interface, 5);
     wl_seat_add_listener(state->seat, &seat_listener, state);
@@ -295,6 +304,30 @@ static void registry_global(void *data, struct wl_registry *reg, uint32_t name,
 }
 static void registry_global_remove(void *data, struct wl_registry *reg,
                                    uint32_t name) {}
+
+/* layer-shell callbacks */
+static void layer_surface_configure(void *data,
+                                    struct zwlr_layer_surface_v1 *surface,
+                                    uint32_t serial, uint32_t width,
+                                    uint32_t height) {
+  WaylandState *state = (WaylandState *)data;
+  state->width = width;
+  state->height = height;
+  state->configured = 1;
+  zwlr_layer_surface_v1_ack_configure(surface, serial);
+  if (state->egl_window) {
+    wl_egl_window_resize(state->egl_window, width, height, 0, 0);
+  }
+}
+static void layer_surface_closed(void *data,
+                                 struct zwlr_layer_surface_v1 *surface) {
+  WaylandState *state = (WaylandState *)data;
+  state->closed = 1;
+}
+static const struct zwlr_layer_surface_v1_listener layer_surface_listener = {
+    .configure = layer_surface_configure,
+    .closed = layer_surface_closed,
+};
 
 /* ── Public API for Nim ── */
 
@@ -324,22 +357,44 @@ WaylandState *wl_backend_init(int windowed) {
     return NULL;
   }
 
+  state->windowed = windowed;
+
   /* Create surface */
   state->surface = wl_compositor_create_surface(state->compositor);
-  state->xdg_surface =
-      xdg_wm_base_get_xdg_surface(state->wm_base, state->surface);
-  xdg_surface_add_listener(state->xdg_surface, &xdg_surface_listener_obj,
-                           state);
 
-  state->xdg_toplevel = xdg_surface_get_toplevel(state->xdg_surface);
-  xdg_toplevel_add_listener(state->xdg_toplevel, &toplevel_listener, state);
-  xdg_toplevel_set_title(state->xdg_toplevel, "boomer");
-  xdg_toplevel_set_app_id(state->xdg_toplevel, "boomer");
-
-  if (!windowed) {
-    xdg_toplevel_set_fullscreen(state->xdg_toplevel, state->output);
+  if (!windowed && state->layer_shell) {
+    /* Layer-shell overlay: no window management, instant fullscreen */
+    state->layer_surface = zwlr_layer_shell_v1_get_layer_surface(
+        state->layer_shell, state->surface, state->output,
+        ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY, "boomer");
+    zwlr_layer_surface_v1_set_anchor(state->layer_surface,
+                                     ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP |
+                                         ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
+                                         ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
+                                         ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
+    zwlr_layer_surface_v1_set_exclusive_zone(state->layer_surface, -1);
+    zwlr_layer_surface_v1_set_keyboard_interactivity(
+        state->layer_surface,
+        ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE);
+    zwlr_layer_surface_v1_add_listener(state->layer_surface,
+                                       &layer_surface_listener, state);
+  } else {
+    /* xdg-shell: for windowed mode or fallback */
+    state->xdg_surface =
+        xdg_wm_base_get_xdg_surface(state->wm_base, state->surface);
+    xdg_surface_add_listener(state->xdg_surface, &xdg_surface_listener_obj,
+                             state);
+    state->xdg_toplevel = xdg_surface_get_toplevel(state->xdg_surface);
+    xdg_toplevel_add_listener(state->xdg_toplevel, &toplevel_listener, state);
+    xdg_toplevel_set_title(state->xdg_toplevel, "boomer");
+    xdg_toplevel_set_app_id(state->xdg_toplevel, "boomer");
+    if (!windowed) {
+      xdg_toplevel_set_fullscreen(state->xdg_toplevel, state->output);
+    }
   }
 
+  /* Commit with no buffer attached — triggers configure event.
+   * The surface only becomes visible on the first eglSwapBuffers. */
   wl_surface_commit(state->surface);
   wl_display_roundtrip(state->display); /* get configure */
 
@@ -514,6 +569,10 @@ void wl_backend_destroy(WaylandState *state) {
   if (state->egl_display != EGL_NO_DISPLAY)
     eglTerminate(state->egl_display);
 
+  if (state->layer_surface)
+    zwlr_layer_surface_v1_destroy(state->layer_surface);
+  if (state->layer_shell)
+    zwlr_layer_shell_v1_destroy(state->layer_shell);
   if (state->xdg_toplevel)
     xdg_toplevel_destroy(state->xdg_toplevel);
   if (state->xdg_surface)
