@@ -2,12 +2,14 @@
 
 {.compile: "wayland_backend.c".}
 {.compile: "xdg-shell-protocol.c".}
+{.compile: "wlr-layer-shell-protocol.c".}
 {.passL: "-lwayland-client -lwayland-egl -lEGL".}
 
 type WaylandState* = distinct pointer
 
 proc wl_backend_init*(windowed: cint): WaylandState {.importc, cdecl.}
 proc wl_backend_swap_buffers*(state: WaylandState) {.importc, cdecl.}
+proc wl_backend_show_surface*(state: WaylandState) {.importc, cdecl.}
 proc wl_backend_poll_events*(state: WaylandState): cint {.importc, cdecl.}
 proc wl_backend_dispatch*(state: WaylandState): cint {.importc, cdecl.}
 proc wl_state_reset_frame*(state: WaylandState) {.importc, cdecl.}

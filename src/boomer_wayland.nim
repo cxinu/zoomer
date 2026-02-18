@@ -201,11 +201,7 @@ proc mainWayland() =
     quit "Failed to initialize Wayland backend"
   defer: wl_backend_destroy(wlState)
 
-  # Wait for configure
-  while wl_state_configured(wlState) == 0:
-    discard wl_backend_roundtrip(wlState)
-
-  # Load OpenGL extensions
+  # Load OpenGL extensions (EGL context is already current from init)
   loadExtensions()
 
   var shaderProgram = newShaderProgram(vertexShader, fragmentShader)
@@ -275,6 +271,31 @@ proc mainWayland() =
 
   let rate = wl_state_output_rate(wlState)
   let dt = 1.0 / rate.float
+
+  # Wait until compositor sends fullscreen configure
+  while wl_state_configured(wlState) == 0:
+    discard wl_backend_roundtrip(wlState)
+
+  # Render the first frame immediately so the window appears with
+  # screenshot content (the window becomes visible on first eglSwapBuffers)
+  block:
+    let w = wl_state_width(wlState)
+    let h = wl_state_height(wlState)
+    glViewport(0, 0, w, h)
+    glClearColor(0.1, 0.1, 0.1, 1.0)
+    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+    glUseProgram(shaderProgram)
+    glUniform2f(glGetUniformLocation(shaderProgram, "cameraPos".cstring), 0.0, 0.0)
+    glUniform1f(glGetUniformLocation(shaderProgram, "cameraScale".cstring), 1.0)
+    glUniform2f(glGetUniformLocation(shaderProgram, "screenshotSize".cstring),
+                screenshot.width.float32, screenshot.height.float32)
+    glUniform2f(glGetUniformLocation(shaderProgram, "windowSize".cstring), w.float32, h.float32)
+    glUniform2f(glGetUniformLocation(shaderProgram, "cursorPos".cstring), 0.0, 0.0)
+    glUniform1f(glGetUniformLocation(shaderProgram, "flShadow".cstring), 0.0)
+    glUniform1f(glGetUniformLocation(shaderProgram, "flRadius".cstring), 200.0)
+    glBindVertexArray(vao)
+    glDrawElements(GL_TRIANGLES, count = 6, GL_UNSIGNED_INT, indices = nil)
+    wl_backend_swap_buffers(wlState)
 
   var
     quitting = false
