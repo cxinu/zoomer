@@ -12,16 +12,44 @@ Zoomer application for Linux.
 
 ## Dependencies
 
-### Debian
+### X11 (default)
+
+#### Debian
 
 ```console
 $ sudo apt-get install libgl1-mesa-dev libx11-dev libxext-dev libxrandr-dev
 ```
 
+### Wayland
+
+#### Debian
+
+```console
+$ sudo apt-get install libwayland-dev libwayland-egl1-mesa libegl1-mesa-dev grim
+```
+
+#### Arch Linux
+
+```console
+$ sudo pacman -S wayland wayland-protocols mesa grim
+```
+
+Wayland also requires `grim` at runtime for screen capture.
+
 ## Quick Start
+
+### X11
 
 ```console
 $ nimble build
+$ ./boomer --help
+$ ./boomer          # to just start using
+```
+
+### Wayland
+
+```console
+$ nimble build -d:wayland
 $ ./boomer --help
 $ ./boomer          # to just start using
 ```
@@ -79,6 +107,7 @@ Experimental or unstable features can be enabled by passing the following flags 
 
 | Flag          | Description                                                                                                                    |
 |---------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `-d:wayland`  | Build with native Wayland support instead of X11. Requires `grim` for screenshots.                                             |
 | `-d:live`     | Live image update. See issue [#26].                                                                                            |
 | `-d:mitshm`   | Enables faster Live image update using MIT-SHM X11 extension. Should be used along with `-d:live` to have an effect             |
 | `-d:select`   | Application lets the user to click on te window to "track" and it will track that specific window instead of the whole screen. |
