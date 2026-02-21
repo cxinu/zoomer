@@ -134,20 +134,6 @@ proc mainWayland() =
         body
         i += 1
 
-      template asOptionalParam(paramVar: untyped, body: untyped) =
-        let paramVar = block:
-          var resultVal = none(string)
-          if i + 1 <= paramCount():
-            let param = paramStr(i + 1)
-            if len(param) > 0 and param[0] != '-':
-              resultVal = some(param)
-          resultVal
-        body
-        if paramVar.isNone:
-          i += 1
-        else:
-          i += 2
-
       case arg
       of "-d", "--delay":
         asParam(delayParam):
@@ -162,17 +148,22 @@ proc mainWayland() =
         asFlag():
           versionQuit()
       of "--new-config":
-        asOptionalParam(configName):
-          let newConfigPath = configName.get(configFile)
+        var configName = none(string)
+        if i + 1 <= paramCount():
+          let param = paramStr(i + 1)
+          if len(param) > 0 and param[0] != '-':
+            configName = some(param)
 
-          createDir(newConfigPath.splitFile.dir)
-          if newConfigPath.fileExists:
-            stdout.write("File ", newConfigPath, " already exists. Replace it? [yn] ")
-            if stdin.readChar != 'y':
-              quit "Disaster prevented"
+        let newConfigPath = configName.get(configFile)
 
-          generateDefaultConfig(newConfigPath)
-          quit "Generated config at $#" % [newConfigPath]
+        createDir(newConfigPath.splitFile.dir)
+        if newConfigPath.fileExists:
+          stdout.write("File ", newConfigPath, " already exists. Replace it? [yn] ")
+          if stdin.readChar != 'y':
+            quit "Disaster prevented"
+
+        generateDefaultConfig(newConfigPath)
+        quit "Generated config at $#" % [newConfigPath]
       of "-c", "--config":
         asParam(configParam):
           configFile = configParam
