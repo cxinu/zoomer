@@ -1,3 +1,11 @@
 nimcache/
 boomer
 *.ppm
+
+# AUR build artifacts
+/pkg/
+/src/
+/boomer-wayland-git/
+*.pkg.tar.zst
+*.src.tar.gz
+.SRCINFO
