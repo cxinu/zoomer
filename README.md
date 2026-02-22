@@ -1,83 +1,63 @@
-[![Tsoding](https://img.shields.io/badge/twitch.tv-tsoding-purple?logo=twitch&style=for-the-badge)](https://www.twitch.tv/tsoding)
-[![Build Status](https://travis-ci.org/tsoding/boomer.svg?branch=master)](https://travis-ci.org/tsoding/boomer)
-
 # Boomer
 
 ![](./demo.gif)
 
-Zoomer application for Linux.
+This is a fork of [tsoding/boomer](https://github.com/tsoding/boomer) for Zoomers (**Wayland users**).
+It is a zooming tool for Linux designed for presentations, streams, and high-performance screen magnification.
 
-- Development is done on https://twitch.tv/tsoding
-- Archive of the streams: https://www.twitch.tv/collections/HlRy-q69uBXmpQ
+## Installation
 
-## Dependencies
-
-### X11 (default)
-
-#### Debian
+### Arch Linux (AUR)
 
 ```console
-$ sudo apt-get install libgl1-mesa-dev libx11-dev libxext-dev libxrandr-dev
+$ yay -S boomer-wayland-git
+
 ```
 
-### Wayland
+### Manual Build
 
-#### Debian
+#### 1. Install Dependencies
+
+**Arch Linux:**
 
 ```console
-$ sudo apt-get install libwayland-dev libwayland-egl1-mesa libegl1-mesa-dev grim
+$ sudo pacman -S wayland wayland-protocols mesa grim nim nimble
+
 ```
 
-#### Arch Linux
+**Debian/Ubuntu:**
 
 ```console
-$ sudo pacman -S wayland wayland-protocols mesa grim
+$ sudo apt install libwayland-dev libwayland-egl1-mesa libegl1-mesa-dev grim nim
+
 ```
 
-Wayland also requires `grim` at runtime for screen capture.
+_Note: `grim` is required at runtime for screen capture on Wayland._
 
-## Quick Start
+#### 2. Compile
 
-### X11
+To build for Wayland:
 
 ```console
-$ nimble build
+$ nimble build -d:release -d:wayland
+
+```
+
+To build for X11:
+
+```console
+$ nimble build -d:release
+
+```
+
+> NOTE: to build this for x11 requires `libx11` `libxext` `libxrandr`.
+
+## Usage
+
+```console
 $ ./boomer --help
-$ ./boomer          # to just start using
+
 ```
-
-### Wayland
-
-```console
-$ nimble build -d:wayland
-$ ./boomer --help
-$ ./boomer          # to just start using
-```
-
-## Developer Capabilities
-
-For additional Developer Capabilities compile the application with the following flags:
-
-```console
-$ nimble build -d:developer
-```
-
-This will enable reloading the shaders with `Ctrl+R`. The shader files (`frag.glsl` and `vert.glsl`) should be located in the same folder as `boomer.nim` for this feature to work. If the shader files not found the program won't even start.
-
-**Keep in mind that the developer build is not suitable for day-to-day usage because it creates the external dependency on the shader files. Compiling the program without `-d:developer` "bakes" the shaders into the executable and eliminates the dependency.**
-
-## Controls
-
-| Control                                   | Description                                                   |
-|-------------------------------------------|---------------------------------------------------------------|
-| <kbd>0</kbd>                              | Reset the application state (position, scale, velocity, etc). |
-| <kbd>q</kbd> or <kbd>ESC</kbd>            | Quit the application.                                         |
-| <kbd>r</kbd>                              | Reload configuration.                                         |
-| <kbd>Ctrl</kbd> + <kbd>r</kbd>            | Reload the shaders (only for Developer mode)                  |
-| <kbd>f</kbd>                              | Toggle flashlight effect.                                     |
-| Drag with left mouse button               | Move the image around.                                        |
-| Scroll wheel or <kbd>=</kbd>/<kbd>-</kbd> | Zoom in/out.                                                  |
-| <kbd>Ctrl</kbd> + Scroll wheel            | Change the radious of the flaslight.                          |
 
 ## Configuration
 
@@ -95,7 +75,7 @@ You can generate a new config at `$HOME/.config/boomer/config` with `$ boomer --
 Supported parameters:
 
 | Name           | Description                                        |
-|----------------|----------------------------------------------------|
+| -------------- | -------------------------------------------------- |
 | min_scale      | The smallest it can get when zooming out           |
 | scroll_speed   | How quickly you can zoom in/out by scrolling       |
 | drag_friction  | How quickly the movement slows down after dragging |
@@ -105,42 +85,13 @@ Supported parameters:
 
 Experimental or unstable features can be enabled by passing the following flags to `nimble build` command:
 
-| Flag          | Description                                                                                                                    |
-|---------------|--------------------------------------------------------------------------------------------------------------------------------|
-| `-d:wayland`  | Build with native Wayland support instead of X11. Requires `grim` for screenshots.                                             |
-| `-d:live`     | Live image update. See issue [#26].                                                                                            |
-| `-d:mitshm`   | Enables faster Live image update using MIT-SHM X11 extension. Should be used along with `-d:live` to have an effect             |
-| `-d:select`   | Application lets the user to click on te window to "track" and it will track that specific window instead of the whole screen. |
+| Flag         | Description                                                                                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `-d:wayland` | Build with native Wayland support instead of X11. Requires `grim` for screenshots.                                             |
+| `-d:live`    | Live image update. See issue [#26].                                                                                            |
+| `-d:mitshm`  | Enables faster Live image update using MIT-SHM X11 extension. Should be used along with `-d:live` to have an effect            |
+| `-d:select`  | Application lets the user to click on te window to "track" and it will track that specific window instead of the whole screen. |
 
-## NixOS Overlay
+## Credits & Support
 
-```
-$ git clone git://github.com/tsoding/boomer.git /path/to/boomer
-$ mkdir -p ~/.config/nixpkgs/overlays
-$ cd ~/.config/nixpkgs/overlays
-$ ln -s /path/to/boomer/overlay/ boomer
-$ nix-env -iA nixos.boomer
-```
-
-## References
-
-- https://github.com/nim-lang/x11/blob/bf9dc74dd196a98b7c2a2beea4d92640734f7c60/examples/x11ex.nim
-- http://archive.xfce.org/src/xfce/xfwm4/4.13/
-- https://www.khronos.org/opengl/wiki/Programming_OpenGL_in_Linux:_GLX_and_Xlib
-- https://www.khronos.org/registry/OpenGL-Refpages/gl2.1/xhtml/glXIntro.xml
-- https://stackoverflow.com/questions/24988164/c-fast-screenshots-in-linux-for-use-with-opencv
-- https://github.com/lolilolicon/xrectsel
-- https://github.com/naelstrof/slop
-- https://www.x.org/releases/X11R7.7/doc/xextproto/shm.html
-- http://netpbm.sourceforge.net/doc/ppm.html
-- https://github.com/def-/nim-syscall
-- https://github.com/dreamer/scrot
-
-## Support
-
-You can support my work via
-
-- Twitch channel: https://www.twitch.tv/subs/tsoding
-- Patreon: https://www.patreon.com/tsoding
-
-[#26]: https://github.com/tsoding/boomer/issues/26
+- Original Creator: [tsoding](https://github.com/rexim)
